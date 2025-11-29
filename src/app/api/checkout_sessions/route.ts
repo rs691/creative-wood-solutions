@@ -1,15 +1,26 @@
-
+import { Product } from '@/types/index';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { Product } from '@/types/index';
 
-// IMPORTANT: Set your Stripe secret key as an environment variable
-// in your Firebase App Hosting settings.
-// Do NOT hardcode the secret key in your source code.
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+// Remove the global Stripe initialization.
 
 export async function POST(req: NextRequest) {
+  // 💡 SOLUTION: Initialize Stripe INSIDE the handler function.
+  // This guarantees it is executed at RUNTIME, where the environment 
+  // variable has been loaded by the hosting platform.
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+
   try {
+    // Check if the key is missing/undefined right here, before proceeding
+    // to provide a better runtime error if deployment config is wrong.
+    if (!process.env.STRIPE_SECRET_KEY) {
+      console.error("STRIPE_SECRET_KEY is missing from environment variables.");
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing secret key.' },
+        { status: 500 }
+      );
+    }
+
     const { items } = (await req.json()) as { items: { product: Product; quantity: number }[] };
 
     if (!items || items.length === 0) {
@@ -24,7 +35,7 @@ export async function POST(req: NextRequest) {
           images: [item.product.imageUrl],
           description: item.product.description,
         },
-        unit_amount: item.product.price * 100, // Price in cents
+        unit_amount: item.product.price * 100,
       },
       quantity: item.quantity,
     }));
